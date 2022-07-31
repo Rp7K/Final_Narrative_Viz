@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <body>
+        <h1> Monthly Maximum Gas Prices Over 1-Year Intervals (Car Brand:Mini) </h1>
+        <!-- For some reason, unlike the examples, button onclick isnt working because it says it isnt defined, maybe debug later, just find these via id and check for onclick then -->
+        <button onclick="" id = "button1">(1) Maximum Gas Prices for (2016-2017)</button>
+        <button onclick="" id="button2">(2) Maximum Mini Gas Prices for (2017-2018)</button>
+        <button onclick="" id="button3" >(3) Maximum Mini Gas Prices for (2018-2019)</button>
+        <p id="maxGas"></p>
+
+<!-- Load d3.js -->
+<script src="https://d3js.org/d3.v4.js"></script>
+<!-- Load d3 annotations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3-annotation/2.5.1/d3-annotation.min.js" integrity="sha512-iBAeBWWWFb8HqSBcrqcz98iIpuVH1la39dEYHtyQ/pGpeCQTQVvLJOWAuhv2Q7JSHp9k7hWA7sGxU3hHJe+tFg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<!-- Create a div where the graph will take place -->
+<div id="my_dataviz"></div>
+<script>
+    //margins for graph, need extra on bottom and left for axis labels.
+    var margin = {top: 30, right: 30, bottom: 60, left: 60},
+    width = 1750 - margin.left - margin.right,
+    height = 750 - margin.top - margin.bottom;
+
+// append the svg object to the body of the page
+var svg = d3.select("#my_dataviz")
+  .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .attr("id", "clearme")
+  .append("g")
+    .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+//Read the data
+d3.csv("https://raw.githubusercontent.com/Rp7K/datasets/master/minigas.csv", 
+//need a function to just do this timeParse nonsense (--> idea from stackOverflow)
+function readMe(d,i) {
+  return {
+    mydate: d3.timeParse("%Y-%m-%d")(d.mydate),
+    total: d.total
+        };
+  },
+  //handle the button stuff, but also have the ability to take in data paramter. 
+  function parseMe(data){
+    //select the buttons, and call functions and call the approaite render function case, keep track of frequencyCount to alleviate resources if needed.
+    frequencyCount = 0
+    var button1 = d3.select('#button1');
+    button1.on('click', function buttonPress1() {
+                  console.log("Clearing Previous SVG and Annotations, and rendering New Scene");
+                  updateFrequencyCount(frequencyCount);
+                  svg.selectAll('*').remove();
+                  d3.selectAll(".annotations").remove()
+                  var timeInterval = [d3.timeParse("%Y-%m-%d")("2015-01-31") , d3.timeParse("%Y-%m-%d")("2017-01-31")]
+                    render(1, timeInterval[0], timeInterval[1]);
+                });
+    var button2 = d3.select('#button2');
+    button2.on('click', function buttonPress2() {
+                console.log("Clearing Previous SVG and Annotations, and rendering New Scene");
+                updateFrequencyCount(frequencyCount);
+                svg.selectAll('*').remove();
+                d3.selectAll(".annotations").remove()
+                var timeInterval = [d3.timeParse("%Y-%m-%d")("2017-01-31") , d3.timeParse("%Y-%m-%d")("2018-01-31")]
+                    render(2, timeInterval[0], timeInterval[1]);
+                });
+    var button3 = d3.select('#button3');
+    button3.on('click', function buttonPress3() {
+            console.log("Clearing Previous SVG and Annotations, and rendering New Scene");
+            updateFrequencyCount(frequencyCount);
+            svg.selectAll('*').remove();
+            d3.selectAll(".annotations").remove()
+            var timeInterval = [d3.timeParse("%Y-%m-%d")("2018-01-31") , d3.timeParse("%Y-%m-%d")("2020-01-31")]
+                    render(3, timeInterval[0], timeInterval[1]);
+                });
+                //function to update frequency Count of each button.. can use this to dynamically change buttons. implement if time.
+      function updateFrequencyCount(frequencyCount) {
+      this.frequencyCount +=1;
+      console.log(frequencyCount);
+      return frequencyCount % 100;
+
+  }
+//main render function, consists of a switch statement and tooltip logic, and annotation logic.
+    function render(buttonNumber, timeIntervalS, timeIntervalE){
+        switch(buttonNumber){
+        case 1:
+          //Credit: D3.js Graph Gallery, and Instructor Code Samples. 
+        firstIntervalData = data.filter(function(d,i){return d.mydate > timeIntervalS && d.mydate < timeIntervalE;})
+        var domain_max = d3.max(firstIntervalData, function(d,i){return +d.mydate;});
+        var domain_min = d3.min(firstIntervalData, function(d,i){return +d.mydate;});
+        var domain1 = [domain_min, domain_max]
+        var x = d3.scaleTime()
+        .domain(domain1).
+        range([0,width]);
+        svg.append("g").
+        attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x));
+        //domain is 0 to max of gas price
+        var domain_max = d3.max(firstIntervalData, function(d,i){return +d.total;});
+        document.getElementById("maxGas").innerHTML = "Max Gas Price for selected interval : " + domain_max;
+        console.log(domain_max);
+        var y = d3.scaleLinear()
+        .domain([0, domain_max])
+        .range([height,0]);
+        svg.append("g")
+        .call(d3.axisLeft(y));
+
+        // This allows to find the closest X index of the mouse: d,i breaks this for some reason.
+        var bisect = d3.bisector(function(d) { return d.mydate; }).left;
+
+        // The code for the tooltip is heavily credited to : d3-graph-gallery
+// Create the circle that travels along the curve of chart
+        var focus = svg
+          .append('g')
+          .append('circle')
+            .style("fill", "gray")
+            .attr("stroke", "red")
+            .attr('r', 7)
+            .style("opacity", 0)
+
+// Create the text that travels along the curve of chart
+          var focusText = svg
+            .append('g')
+            .append('text')
+              .style("opacity", 0)
+              .attr("text-anchor", "left")
+              .attr("alignment-baseline", "middle")
+//make the line with x and y being parsed values
+            var line = svg
+            .append("g")
+            .append("path")
+            .datum(firstIntervalData)
+            .style("fill", "none")
+            .attr("stroke","#f781bf")
+            .style("stroke-width", 4)
+            .attr("d",d3.line()
+            .x(function(d){return x(d.mydate)})
+            .y(function(d){return y(d.total)})
+            )
+            
+            var rect = svg
+            .append('rect')
+            .style("fill", "none")
+            .style("pointer-events", "all")
+            .attr('width', width)
+            .attr('height', height)
+            .on('mouseover', mouseover)
+            .on('mousemove', mousemove)
+            .on('mouseout', mouseout);
+//X axis label:
+            var x_axis_text = svg.append("text")
+              .attr("text-anchor", "end")
+              .attr("x", width/2 + margin.left)
+              .attr("y", height + margin.top + 20)
+              .text("Months of the Year");
+
+  // Y axis label:
+          var y_axis_text = svg.append("text")
+              .attr("text-anchor", "end")
+              .attr("transform", "rotate(-90)")
+              .attr("y", -margin.left + 20)
+              .attr("x", -margin.top - height/2 + 20)
+              .text("Price in Dollars USD")
+
+  // What happens when the mouse move -> show the annotations at the right positions.
+          function mouseover() {
+            focus.style("opacity", 1)
+            focusText.style("opacity",1)
+          }
+// More mouse event stuff, look at resource for info on what this does.
+        function mousemove() {
+          // recover coordinate we need
+          var x0 = x.invert(d3.mouse(this)[0]);
+          var i = bisect(firstIntervalData, x0, 1);
+          selectedData = firstIntervalData[i]
+          focus
+            .attr("cx", x(selectedData.mydate))
+            .attr("cy", y(selectedData.total))
+          focusText
+            .html("x:" + selectedData.mydate + "  -  " + "y:" + selectedData.total)
+            .attr("x", x(selectedData.mydate)+15)
+            .attr("y", y(selectedData.total))
+          }
+          function mouseout() {
+            focus.style("opacity", 0)
+            focusText.style("opacity", 0)
+          }
+
+        // Draw annotation.
+        const annotations = [
+          {
+          note: {
+            label: "The maximum price for a full tank of gas recorded for the time frame 2016-2017 was 30 USD",
+            title: "Max Gas Price",
+            wrap: 150,
+            align: "left"
+          },
+          connector: {
+            end: "dot", // 'dot' also available
+            type: "curve"
+          },
+          x: 1120,
+          y: 30,
+          dy: 200,
+          dx: 162,
+          color: "black"
+        },
+
+
+        ]
+        //make the annotations
+        const makeAnnotations = d3.annotation()
+          .type(d3.annotationLabel)
+          .annotations(annotations)
+//append to svg
+        d3.select("svg")
+          .append("g")
+          .attr("class", "annotation-group")
+          .call(makeAnnotations)
+
+      break;
+      case 2:
+          //Credit: D3.js Graph Gallery, and Instructor Code Samples. 
+        firstIntervalData = data.filter(function(d,i){return d.mydate > timeIntervalS && d.mydate < timeIntervalE;})
+        var domain_max = d3.max(firstIntervalData, function(d,i){return +d.mydate;});
+        var domain_min = d3.min(firstIntervalData, function(d,i){return +d.mydate;});
+        var domain1 = [domain_min, domain_max]
+        
+        var x = d3.scaleTime()
+        .domain(domain1).
+        range([0,width]);
+        svg.append("g").
+        attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x));
+
+        //domain is 0 to max of gas price
+        var domain_max = d3.max(firstIntervalData, function(d,i){return +d.total;});
+        document.getElementById("maxGas").innerHTML = "Max Gas Price for selected interval : " + domain_max;
+        console.log(domain_max);
+        var y = d3.scaleLinear()
+        .domain([0, domain_max])
+        .range([height,0]);
+        svg.append("g")
+        .call(d3.axisLeft(y));
+
+        // This allows to find the closest X index of the mouse: d,i breaks this for some reason.
+        var bisect = d3.bisector(function(d) { return d.mydate; }).left;
+
+        // The code for the tooltip is heavily credited to : d3-graph-gallery
+// Create the circle that travels along the curve of chart
+        var focus = svg
+          .append('g')
+          .append('circle')
+            .style("fill", "gray")
+            .attr("stroke", "red")
+            .attr('r', 7)
+            .style("opacity", 0)
+
+// Create the text that travels along the curve of chart
+          var focusText = svg
+            .append('g')
+            .append('text')
+              .style("opacity", 0)
+              .attr("text-anchor", "left")
+              .attr("alignment-baseline", "middle")
+
+            var line = svg
+            .append("g")
+            .append("path")
+            .datum(firstIntervalData)
+            .style("fill", "none")
+            .attr("stroke","#f781bf")
+            .style("stroke-width", 4)
+            .attr("d",d3.line()
+            .x(function(d){return x(d.mydate)})
+            .y(function(d){return y(d.total)})
+            )
+            
+            var rect = svg
+            .append('rect')
+            .style("fill", "none")
+            .style("pointer-events", "all")
+            .attr('width', width)
+            .attr('height', height)
+            .on('mouseover', mouseover)
+            .on('mousemove', mousemove)
+            .on('mouseout', mouseout);
+//X axis label:
+            var x_axis_text = svg.append("text")
+              .attr("text-anchor", "end")
+              .attr("x", width/2 + margin.left)
+              .attr("y", height + margin.top + 20)
+              .text("Months of the Year");
+
+  // Y axis label:
+          var y_axis_text = svg.append("text")
+              .attr("text-anchor", "end")
+              .attr("transform", "rotate(-90)")
+              .attr("y", -margin.left + 20)
+              .attr("x", -margin.top - height/2 + 20)
+              .text("Price in Dollars USD")
+
+  // What happens when the mouse move -> show the annotations at the right positions.
+          function mouseover() {
+            focus.style("opacity", 1)
+            focusText.style("opacity",1)
+          }
+
+        function mousemove() {
+          // recover coordinate we need
+          var x0 = x.invert(d3.mouse(this)[0]);
+          var i = bisect(firstIntervalData, x0, 1);
+          selectedData = firstIntervalData[i]
+          focus
+            .attr("cx", x(selectedData.mydate))
+            .attr("cy", y(selectedData.total))
+          focusText
+            .html("x:" + selectedData.mydate + "  -  " + "y:" + selectedData.total)
+            .attr("x", x(selectedData.mydate)+15)
+            .attr("y", y(selectedData.total))
+          }
+          function mouseout() {
+            focus.style("opacity", 0)
+            focusText.style("opacity", 0)
+          }
+
+        // Draw annotation.
+        const annotations1 = [
+          {
+          note: {
+            label: "The maximum price for a full tank of gas recorded for the time frame 2017-2018 was 39.01 USD",
+            title: "Max Gas Price",
+            wrap: 150,
+            align: "left"
+          },
+          connector: {
+            end: "dot", // 'dot' also available
+            type: "curve"
+          },
+          x: 1112,
+          y: 30,
+          dy: 220,
+          dx: 162,
+          color: "black"
+        },
+
+
+        ]
+        const makeAnnotations1 = d3.annotation()
+          .type(d3.annotationLabel)
+          .annotations(annotations1)
+
+        d3.select("svg")
+          .append("g")
+          .attr("class", "annotation-group")
+          .call(makeAnnotations1)
+
+      break;
+      case 3:
+          //Credit: D3.js Graph Gallery, and Instructor Code Samples. 
+        firstIntervalData = data.filter(function(d,i){return d.mydate > timeIntervalS && d.mydate < timeIntervalE;})
+        var domain_max = d3.max(firstIntervalData, function(d,i){return +d.mydate;});
+        var domain_min = d3.min(firstIntervalData, function(d,i){return +d.mydate;});
+        var domain1 = [domain_min, domain_max]
+        
+        var x = d3.scaleTime()
+        .domain(domain1).
+        range([0,width]);
+        svg.append("g").
+        attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x));
+        //domain is 0 to max of gas price
+        var domain_max = d3.max(firstIntervalData, function(d,i){return +d.total;});
+        document.getElementById("maxGas").innerHTML = "Max Gas Price for selected interval : " + domain_max;
+        console.log(domain_max);
+        var y = d3.scaleLinear()
+        .domain([0, domain_max])
+        .range([height,0]);
+        svg.append("g")
+        .call(d3.axisLeft(y));
+
+        // This allows to find the closest X index of the mouse: d,i breaks this for some reason.
+        var bisect = d3.bisector(function(d) { return d.mydate; }).left;
+
+        // The code for the tooltip is heavily credited to : d3-graph-gallery
+// Create the circle that travels along the curve of chart
+        var focus = svg
+          .append('g')
+          .append('circle')
+            .style("fill", "gray")
+            .attr("stroke", "red")
+            .attr('r', 7)
+            .style("opacity", 0)
+
+// Create the text that travels along the curve of chart
+          var focusText = svg
+            .append('g')
+            .append('text')
+              .style("opacity", 0)
+              .attr("text-anchor", "left")
+              .attr("alignment-baseline", "middle")
+
+            var line = svg
+            .append("g")
+            .append("path")
+            .datum(firstIntervalData)
+            .style("fill", "none")
+            .attr("stroke","#f781bf")
+            .style("stroke-width", 4)
+            .attr("d",d3.line()
+            .x(function(d){return x(d.mydate)})
+            .y(function(d){return y(d.total)})
+            )
+            
+            var rect = svg
+            .append('rect')
+            .style("fill", "none")
+            .style("pointer-events", "all")
+            .attr('width', width)
+            .attr('height', height)
+            .on('mouseover', mouseover)
+            .on('mousemove', mousemove)
+            .on('mouseout', mouseout);
+//X axis label:
+            var x_axis_text = svg.append("text")
+              .attr("text-anchor", "end")
+              .attr("x", width/2 + margin.left)
+              .attr("y", height + margin.top + 20)
+              .text("Months of the Year");
+
+  // Y axis label:
+          var y_axis_text = svg.append("text")
+              .attr("text-anchor", "end")
+              .attr("transform", "rotate(-90)")
+              .attr("y", -margin.left + 20)
+              .attr("x", -margin.top - height/2 + 20)
+              .text("Price in Dollars USD")
+
+  // What happens when the mouse move -> show the annotations at the right positions.
+          function mouseover() {
+            focus.style("opacity", 1)
+            focusText.style("opacity",1)
+          }
+
+        function mousemove() {
+          // recover coordinate we need
+          var x0 = x.invert(d3.mouse(this)[0]);
+          var i = bisect(firstIntervalData, x0, 1);
+          selectedData = firstIntervalData[i]
+          focus
+            .attr("cx", x(selectedData.mydate))
+            .attr("cy", y(selectedData.total))
+          focusText
+            .html("x:" + selectedData.mydate + "  -  " + "y:" + selectedData.total)
+            .attr("x", x(selectedData.mydate)+15)
+            .attr("y", y(selectedData.total))
+          }
+          function mouseout() {
+            focus.style("opacity", 0)
+            focusText.style("opacity", 0)
+          }
+
+        // Draw annotation.
+        const annotations3= [
+          {
+          note: {
+            label: "The maximum price for a full tank of gas recorded for the time frame 2018-2019 was 40 USD",
+            title: "Max Gas Price",
+            wrap: 150,
+            align: "left"
+          },
+          connector: {
+            end: "dot", // 'dot' also available
+            type: "curve"
+          },
+          x: 728,
+          y: 30,
+          dy: 0,
+          dx: 100,
+          color: "black"
+        },
+
+
+        ]
+        const makeAnnotations3 = d3.annotation()
+          .type(d3.annotationLabel)
+          .annotations(annotations3)
+
+        d3.select("svg")
+          .append("g")
+          .attr("class", "annotation-group")
+          .call(makeAnnotations3)
+
+       
+      break;
+      }
+      
+
+    }
+    //On page load, nothing will be called, so call with first scene. Similar to update in documentation.
+    var timeInterval11 = [d3.timeParse("%Y-%m-%d")("2015-01-31") , d3.timeParse("%Y-%m-%d")("2017-01-31")]
+    render(1, timeInterval11[0], timeInterval11[1]);
+  },
+
+
+)
+</script>
+
+
+
+</body>
+</html>
